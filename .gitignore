@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-cli/
+test-results/
+playwright-report/
+.superpowers/
+*.local
+*.log
+share-url.txt

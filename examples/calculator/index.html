@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>口袋计算器</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#eff3ee;color:#20382e;font:15px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:18px}
+    main{width:100%;max-width:300px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}h1{font-size:16px;font-weight:600;margin:0}small{font:10px ui-monospace,monospace;letter-spacing:2px;color:#687b6c}
+    output{display:block;min-height:64px;overflow-wrap:anywhere;text-align:right;font-size:40px;font-weight:400;padding:8px 4px;margin-bottom:12px;font-variant-numeric:tabular-nums}
+    .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}button{height:45px;border:1px solid #dbe3d9;border-radius:12px;background:#fff;color:inherit;font-size:19px;cursor:pointer}button:hover{background:#e0e9dd}button:focus-visible{outline:3px solid #759779;outline-offset:2px}.operator{background:#e2eadf}.equals{background:#244b3e;color:#fff}.wide{grid-column:span 2}footer{margin-top:16px;text-align:center;font-size:11px;color:#718273;letter-spacing:1px}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>口袋计算器</h1><small>POCKET / 01</small></header>
+  <output aria-live="polite" aria-label="计算结果">0</output>
+  <div class="keys">
+    <button class="wide operator" data-action="clear">AC</button><button data-action="delete" class="operator" aria-label="退格">⌫</button><button class="operator" data-op="/">÷</button>
+    <button>7</button><button>8</button><button>9</button><button class="operator" data-op="*">×</button>
+    <button>4</button><button>5</button><button>6</button><button class="operator" data-op="-">−</button>
+    <button>1</button><button>2</button><button>3</button><button class="operator" data-op="+">+</button>
+    <button class="wide">0</button><button>.</button><button class="equals" data-action="equals">=</button>
+  </div>
+  <footer>无需安装 · 完整应用就在链接里</footer>
+</main>
+<script>
+  let current='0', stored=null, operator=null, fresh=true;
+  const output=document.querySelector('output');
+  function calculate(){
+    if(stored===null||!operator)return;
+    const value=Number(current);
+    const result=operator==='+'?stored+value:operator==='-'?stored-value:operator==='*'?stored*value:stored/value;
+    current=Number.isFinite(result)?String(Number(result.toPrecision(12))):'错误';stored=null;operator=null;
+  }
+  document.querySelector('.keys').addEventListener('click',event=>{
+    const button=event.target.closest('button');if(!button)return;
+    const action=button.dataset.action,op=button.dataset.op,text=button.textContent;
+    if(action==='clear'){current='0';stored=null;operator=null;fresh=true;}
+    else if(action==='delete'){current=current.length>1?current.slice(0,-1):'0';}
+    else if(action==='equals'){calculate();fresh=true;}
+    else if(op){if(!fresh)calculate();stored=Number(current);operator=op;fresh=true;}
+    else{if(fresh||current==='错误'){current='0';fresh=false;}if(text==='.'&&!current.includes('.'))current+='.';else if(text!=='.'&&current.length<15)current=current==='0'?text:current+text;}
+    output.textContent=current;
+  });
+</script>
+</body>
+</html>
