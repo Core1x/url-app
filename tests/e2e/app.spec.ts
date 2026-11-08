@@ -72,29 +72,48 @@ test('corrupt hashes never execute and unsupported browsers receive an actionabl
 
 test('sandbox blocks parent DOM/storage, fetch, external resources, popups, forms and top navigation', async ({ page }) => {
   const requests: string[] = [];
+  const scriptErrors: string[] = [];
+  page.on('pageerror', error => scriptErrors.push(error.message));
   // A browser can emit a request event before CSP rejects it. Interception is
   // downstream of CSP and records requests that actually reach the network layer.
   await page.route('https://example.invalid/**', route => { requests.push(route.request().url()); return route.abort(); });
-  await page.addInitScript(() => localStorage.setItem('host-secret', 'private'));
+  await page.addInitScript(() => { if (window === window.top) localStorage.setItem('host-secret', 'private'); });
   const html = `<img src="https://example.invalid/pixel"><script src="https://example.invalid/evil.js"></script>
     <form action="https://example.invalid/post"><button id="submit">submit</button></form>
-    <button id="top">navigate top</button><pre id="result"></pre>
+    <button id="popup">open popup</button><button id="top">navigate top</button><pre id="result"></pre>
     <script>
       const result = {};
+      const report = () => document.querySelector('#result').textContent = JSON.stringify(result);
       try { parent.document.body.dataset.owned='yes'; result.dom='allowed'; } catch { result.dom='blocked'; }
       try { result.storage=parent.localStorage.getItem('host-secret'); } catch { result.storage='blocked'; }
-      result.popup = window.open('https://example.invalid/popup') === null ? 'blocked' : 'allowed';
+      document.querySelector('#popup').onclick = () => {
+        try { result.popup = window.open('https://example.invalid/popup') == null ? 'blocked' : 'allowed'; }
+        catch { result.popup = 'blocked'; }
+        report();
+      };
       document.querySelector('#top').onclick=()=>{try{top.location='https://example.invalid/top'}catch{}};
-      fetch('https://example.invalid/api').then(()=>result.fetch='allowed').catch(()=>result.fetch='blocked').finally(()=>document.querySelector('#result').textContent=JSON.stringify(result));
+      report();
+      (async () => {
+        try { await fetch('https://example.invalid/api'); result.fetch = 'allowed'; }
+        catch { result.fetch = 'blocked'; }
+        report();
+      })();
     </script>`;
   await page.goto(link(html));
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('#result')).toContainText('"fetch":"blocked"');
+  try {
+    await expect(frame.locator('#result')).toContainText('"fetch":"blocked"');
+  } catch (error) {
+    if (scriptErrors.length) throw new Error(`Sandbox probe script errors: ${scriptErrors.join('; ')}`, { cause: error });
+    throw error;
+  }
+  await frame.locator('#popup').click();
   expect(JSON.parse(await frame.locator('#result').innerText())).toEqual({ dom: 'blocked', storage: 'blocked', popup: 'blocked', fetch: 'blocked' });
   await frame.locator('#submit').click(); await frame.locator('#top').click();
   await expect(frame.locator('#result')).toBeVisible();
   expect(await page.locator('body').getAttribute('data-owned')).toBeNull();
   expect(new URL(page.url()).hostname).toBe('127.0.0.1');
+  expect(page.context().pages()).toHaveLength(1);
   expect(requests).toEqual([]);
 });
 
